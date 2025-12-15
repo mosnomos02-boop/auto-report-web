@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>รายงานอัตโนมัติ</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 16px; }
+    input, textarea, select, button { width: 100%; padding: 12px; margin: 8px 0; font-size: 16px; }
+    button { cursor: pointer; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 600px) { .row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <h2>สร้างรายงาน (รูปเดียว)</h2>
+
+  <form action="/generate" method="post" enctype="multipart/form-data">
+    <label>หัวเรื่อง</label>
+    <input type="text" name="title" value="M:15 แม็กแวลู่สุขาภิบาล 1" />
+
+    <div class="row">
+      <div>
+        <label>วันที่</label>
+        <input type="text" name="date" placeholder="วันที่ 14/12/68" />
+      </div>
+      <div>
+        <label>จำนวนรูป (ระบบจะจัด layout ให้)</label>
+        <select name="count_mode">
+          <option value="auto" selected>อัตโนมัติ (ตามจำนวนรูปที่อัปโหลด)</option>
+          <option value="2">2 รูป</option>
+          <option value="3">3 รูป</option>
+          <option value="4">4 รูป</option>
+          <option value="6">6 รูป</option>
+          <option value="8">8 รูป</option>
+          <option value="18">18 รูป</option>
+        </select>
+      </div>
+    </div>
+
+    <label>รายละเอียดงาน (เลือกสำเร็จรูป หรือพิมพ์เอง)</label>
+    <select id="preset" onchange="document.getElementById('detail').value=this.value">
+      <option value="">-- เลือกข้อความสำเร็จรูป --</option>
+      <option value="เปิด App Food เรียบร้อยค่ะ">เปิด App Food เรียบร้อยค่ะ</option>
+      <option value="ทำความสะอาดร่องน้ำ เรียบร้อยค่ะ">ทำความสะอาดร่องน้ำ เรียบร้อยค่ะ</option>
+      <option value="ตรวจความพร้อมอุปกรณ์ เรียบร้อยค่ะ">ตรวจความพร้อมอุปกรณ์ เรียบร้อยค่ะ</option>
+    </select>
+
+    <textarea id="detail" name="detail" placeholder="รายละเอียดงาน"></textarea>
+
+    <label>เลือกรูป (เลือกได้หลายรูป)</label>
+    <input type="file" name="images" multiple accept="image/*" />
+
+    <button type="submit">สร้างรูป</button>
+  </form>
+</body>
+</html>
