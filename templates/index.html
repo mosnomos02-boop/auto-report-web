@@ -1,57 +1,247 @@
 <!DOCTYPE html>
-<html>
+<html lang="th">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>รายงานอัตโนมัติ</title>
+  <title>รวมรูปออโต้</title>
+
   <style>
-    body { font-family: Arial, sans-serif; padding: 16px; }
-    input, textarea, select, button { width: 100%; padding: 12px; margin: 8px 0; font-size: 16px; }
-    button { cursor: pointer; }
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    @media (max-width: 600px) { .row { grid-template-columns: 1fr; } }
+    :root{
+      --bg:#fff7f3;
+      --card:#ffffff;
+      --text:#1f2937;
+      --muted:#6b7280;
+      --border:#f1d6c9;
+      --shadow: 0 10px 25px rgba(0,0,0,.06);
+      --radius: 16px;
+
+      --accent1:#ff5a3d;
+      --accent2:#ff8a00;
+      --btn:#0b1220;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(900px 500px at 10% 0%, rgba(255,138,0,.18), transparent 55%),
+        radial-gradient(900px 500px at 90% 0%, rgba(255,90,61,.16), transparent 55%),
+        var(--bg);
+      padding: 22px 14px 40px;
+    }
+    .wrap{ max-width: 760px; margin: 0 auto; }
+    .top{
+      display:flex; align-items:flex-start; justify-content:space-between;
+      gap:12px; margin-bottom: 14px;
+    }
+    .h1{ margin:0; font-size: 20px; font-weight: 900; letter-spacing: .2px; }
+    .p{ margin:6px 0 0; color:var(--muted); font-size: 13px; line-height: 1.4; }
+    .chip{
+      border:1px solid var(--border);
+      background:#fff;
+      color:#111827;
+      padding:6px 12px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:900;
+      white-space:nowrap;
+    }
+
+    .card{
+      background:var(--card);
+      border:1px solid var(--border);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+
+    label{
+      display:block;
+      margin: 12px 0 6px;
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 750;
+    }
+
+    input[type="text"], textarea, select{
+      width:100%;
+      padding: 12px 12px;
+      border-radius: 12px;
+      border:1px solid var(--border);
+      outline:none;
+      font-size: 16px;
+      background:#fff;
+    }
+    textarea{ min-height: 92px; resize: vertical; }
+    input[type="text"]:focus, textarea:focus, select:focus{
+      border-color: rgba(255,90,61,.55);
+      box-shadow: 0 0 0 4px rgba(255,90,61,.10);
+    }
+
+    .grid2{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 680px){ .grid2{ grid-template-columns: 1fr; } }
+
+    .dateRow{ display:flex; gap:10px; align-items:center; }
+    .dateRow input{ flex:1; }
+
+    .btnSmall{
+      padding: 11px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background:#fff;
+      color:#111827;
+      font-weight: 850;
+      font-size: 14px;
+      cursor:pointer;
+      white-space:nowrap;
+    }
+    .fileBox{
+      border:1px dashed rgba(255,90,61,.45);
+      border-radius: 14px;
+      padding: 14px;
+      background: #fffaf7;
+    }
+    .fileRow{
+      display:flex; justify-content:space-between; align-items:center;
+      gap: 10px; flex-wrap: wrap;
+    }
+    .count{
+      color:#111827;
+      font-weight:900;
+      padding:6px 10px;
+      border-radius: 999px;
+      background: rgba(255,138,0,.12);
+      border: 1px solid rgba(255,138,0,.25);
+      font-size: 12px;
+    }
+
+    .btnPrimary{
+      width:100%;
+      margin-top: 16px;
+      padding: 14px 16px;
+      border: none;
+      border-radius: 14px;
+      background: var(--btn);
+      color:#fff;
+      font-weight: 900;
+      font-size: 16px;
+      cursor:pointer;
+    }
+    .note{ margin-top: 10px; font-size: 12px; color: var(--muted); }
   </style>
 </head>
+
 <body>
-  <h2>สร้างรายงาน (รูปเดียว)</h2>
-
-  <form action="/generate" method="post" enctype="multipart/form-data">
-    <label>หัวเรื่อง</label>
-    <input type="text" name="title" value="M:15 แม็กแวลู่สุขาภิบาล 1" />
-
-    <div class="row">
+  <div class="wrap">
+    <div class="top">
       <div>
-        <label>วันที่</label>
-        <input type="text" name="date" placeholder="วันที่ 14/12/68" />
+        <h1 class="h1">รวมรูปออโต้</h1>
+        <p class="p">อัปโหลดรูป → เลือกรูปเด่นตรงกลาง → กดสร้าง → ดาวน์โหลดไฟล์รูปเดียว</p>
       </div>
-      <div>
-        <label>จำนวนรูป (ระบบจะจัด layout ให้)</label>
-        <select name="count_mode">
-          <option value="auto" selected>อัตโนมัติ (ตามจำนวนรูปที่อัปโหลด)</option>
-          <option value="2">2 รูป</option>
-          <option value="3">3 รูป</option>
-          <option value="4">4 รูป</option>
-          <option value="6">6 รูป</option>
-          <option value="8">8 รูป</option>
-          <option value="18">18 รูป</option>
-        </select>
-      </div>
+      <div class="chip">MK</div>
     </div>
 
-    <label>รายละเอียดงาน (เลือกสำเร็จรูป หรือพิมพ์เอง)</label>
-    <select id="preset" onchange="document.getElementById('detail').value=this.value">
-      <option value="">-- เลือกข้อความสำเร็จรูป --</option>
-      <option value="เปิด App Food เรียบร้อยค่ะ">เปิด App Food เรียบร้อยค่ะ</option>
-      <option value="ทำความสะอาดร่องน้ำ เรียบร้อยค่ะ">ทำความสะอาดร่องน้ำ เรียบร้อยค่ะ</option>
-      <option value="ตรวจความพร้อมอุปกรณ์ เรียบร้อยค่ะ">ตรวจความพร้อมอุปกรณ์ เรียบร้อยค่ะ</option>
-    </select>
+    <div class="card">
+      <form id="form" action="/generate" method="post" enctype="multipart/form-data">
 
-    <textarea id="detail" name="detail" placeholder="รายละเอียดงาน"></textarea>
+        <label>สาขา</label>
+        <select name="branch" id="branch">
+          <option value="M:15 แม็กแวลู่สุขาภิบาล 1">M:15 แม็กแวลู่สุขาภิบาล 1</option>
+          <option value="M:487 โลตัสสุขาภิบาล 1">M:487 โลตัสสุขาภิบาล 1</option>
+          <option value="M:571 โลตัสนวลจันทร์">M:571 โลตัสนวลจันทร์</option>
+        </select>
 
-    <label>เลือกรูป (เลือกได้หลายรูป)</label>
-    <input type="file" name="images" multiple accept="image/*" />
+        <div class="grid2">
+          <div>
+            <label>วันที่</label>
+            <div class="dateRow">
+              <input id="dateInput" type="text" name="date" placeholder="วันที่ 15/12/68" />
+              <button class="btnSmall" type="button" onclick="setTodayThai()">วันนี้</button>
+            </div>
+          </div>
 
-    <button type="submit">สร้างรูป</button>
-  </form>
+          <div>
+            <label>เลือกรูปเด่นตรงกลาง</label>
+            <select name="center_index" id="centerIndex">
+              <option value="1" selected>รูปที่ 1 (ค่าเริ่มต้น)</option>
+            </select>
+          </div>
+        </div>
+
+        <label>รายละเอียดงาน (เลือกบ่อย)</label>
+        <select id="preset" onchange="applyPreset(this.value)">
+          <option value="">-- เลือก --</option>
+          <option value="เปิด App Food เรียบร้อยค่ะ">เปิด App Food เรียบร้อยค่ะ</option>
+          <option value="ทำความสะอาดร่องน้ำ เรียบร้อยค่ะ">ทำความสะอาดร่องน้ำ เรียบร้อยค่ะ</option>
+          <option value="ตรวจความพร้อมอุปกรณ์ เรียบร้อยค่ะ">ตรวจความพร้อมอุปกรณ์ เรียบร้อยค่ะ</option>
+          <option value="ตรวจความเรียบร้อยหน้างาน เรียบร้อยค่ะ">ตรวจความเรียบร้อยหน้างาน เรียบร้อยค่ะ</option>
+          <option value="จัดเรียงวัตถุดิบ/พื้นที่จัดเก็บ เรียบร้อยค่ะ">จัดเรียงวัตถุดิบ/พื้นที่จัดเก็บ เรียบร้อยค่ะ</option>
+        </select>
+
+        <label>รายละเอียดงาน</label>
+        <textarea id="detail" name="detail" placeholder="พิมพ์รายละเอียดงานตรงนี้..."></textarea>
+
+        <label>อัปโหลดรูป</label>
+        <div class="fileBox">
+          <div class="fileRow">
+            <input id="images" type="file" name="images" multiple accept="image/*" />
+            <div class="count" id="imgCount">ยังไม่ได้เลือกรูป</div>
+          </div>
+        </div>
+
+        <button class="btnPrimary" type="submit">สร้างรูป (Download)</button>
+        <div class="note">* ระบบจะจัดรูปให้เต็มช่องเพื่อให้สวย (ไม่มีขอบขาว)</div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function setTodayThai(){
+      const d = new Date();
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyyBE = d.getFullYear() + 543;
+      const yy = String(yyyyBE).slice(-2);
+      document.getElementById("dateInput").value = `วันที่ ${dd}/${mm}/${yy}`;
+    }
+
+    function applyPreset(v){
+      if(!v) return;
+      document.getElementById("detail").value = v;
+    }
+
+    const fileInput = document.getElementById("images");
+    const countEl = document.getElementById("imgCount");
+    const centerSel = document.getElementById("centerIndex");
+
+    function rebuildCenterOptions(n){
+      centerSel.innerHTML = "";
+      if(!n){
+        const op = document.createElement("option");
+        op.value = "1";
+        op.textContent = "รูปที่ 1 (ค่าเริ่มต้น)";
+        centerSel.appendChild(op);
+        return;
+      }
+      for(let i=1; i<=n; i++){
+        const op = document.createElement("option");
+        op.value = String(i);
+        op.textContent = `รูปที่ ${i}`;
+        centerSel.appendChild(op);
+      }
+      centerSel.value = "1";
+    }
+
+    fileInput.addEventListener("change", () => {
+      const n = fileInput.files ? fileInput.files.length : 0;
+      countEl.textContent = n ? `เลือกรูปแล้ว ${n} รูป` : "ยังไม่ได้เลือกรูป";
+      rebuildCenterOptions(n);
+    });
+  </script>
 </body>
 </html>
