@@ -4,244 +4,215 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>รวมรูปออโต้</title>
-
   <style>
     :root{
-      --bg:#fff7f3;
+      --bg1:#fff6f0;
+      --bg2:#ffe4d6;
       --card:#ffffff;
-      --text:#1f2937;
-      --muted:#6b7280;
-      --border:#f1d6c9;
-      --shadow: 0 10px 25px rgba(0,0,0,.06);
-      --radius: 16px;
-
-      --accent1:#ff5a3d;
-      --accent2:#ff8a00;
-      --btn:#0b1220;
+      --text:#1f1f1f;
+      --muted:#6b6b6b;
+      --line:#f1c6b1;
+      --accent:#ff6a3d;
+      --accent2:#ff3d5a;
+      --btn:#1f2a44;
+      --shadow: 0 14px 40px rgba(0,0,0,.08);
+      --radius:18px;
     }
     *{ box-sizing:border-box; }
     body{
       margin:0;
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
       color:var(--text);
-      background:
-        radial-gradient(900px 500px at 10% 0%, rgba(255,138,0,.18), transparent 55%),
-        radial-gradient(900px 500px at 90% 0%, rgba(255,90,61,.16), transparent 55%),
-        var(--bg);
-      padding: 22px 14px 40px;
+      background: linear-gradient(180deg,var(--bg1),var(--bg2));
+      min-height:100vh;
     }
-    .wrap{ max-width: 760px; margin: 0 auto; }
-    .top{
-      display:flex; align-items:flex-start; justify-content:space-between;
-      gap:12px; margin-bottom: 14px;
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding:18px 18px 0 18px;
+      max-width:980px;
+      margin:0 auto;
     }
-    .h1{ margin:0; font-size: 20px; font-weight: 900; letter-spacing: .2px; }
-    .p{ margin:6px 0 0; color:var(--muted); font-size: 13px; line-height: 1.4; }
-    .chip{
-      border:1px solid var(--border);
+    .brand{
+      font-weight:800;
+      font-size:22px;
+      letter-spacing:.2px;
+    }
+    .mk{
       background:#fff;
-      color:#111827;
-      padding:6px 12px;
+      border:1px solid var(--line);
+      padding:8px 12px;
       border-radius:999px;
-      font-size:12px;
-      font-weight:900;
-      white-space:nowrap;
+      font-weight:700;
     }
-
+    .wrap{
+      max-width:980px;
+      margin:14px auto 36px auto;
+      padding:0 18px;
+    }
     .card{
       background:var(--card);
-      border:1px solid var(--border);
-      box-shadow: var(--shadow);
-      border-radius: var(--radius);
-      padding: 16px;
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:18px;
     }
-
+    .hint{
+      margin:10px 0 18px 0;
+      color:var(--muted);
+      line-height:1.5;
+      font-size:14px;
+    }
     label{
       display:block;
-      margin: 12px 0 6px;
-      font-size: 13px;
-      color: var(--muted);
-      font-weight: 750;
+      font-size:14px;
+      color:#3a3a3a;
+      margin:14px 0 8px;
+      font-weight:700;
     }
-
-    input[type="text"], textarea, select{
+    select,input,textarea{
       width:100%;
-      padding: 12px 12px;
-      border-radius: 12px;
-      border:1px solid var(--border);
+      padding:14px 14px;
+      border-radius:14px;
+      border:1px solid var(--line);
       outline:none;
-      font-size: 16px;
       background:#fff;
+      font-size:16px;
     }
-    textarea{ min-height: 92px; resize: vertical; }
-    input[type="text"]:focus, textarea:focus, select:focus{
-      border-color: rgba(255,90,61,.55);
-      box-shadow: 0 0 0 4px rgba(255,90,61,.10);
-    }
+    textarea{ min-height:110px; resize:vertical; }
 
-    .grid2{
+    .row{
       display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
     }
-    @media (max-width: 680px){ .grid2{ grid-template-columns: 1fr; } }
+    @media (max-width:700px){ .row{ grid-template-columns:1fr; } }
 
-    .dateRow{ display:flex; gap:10px; align-items:center; }
-    .dateRow input{ flex:1; }
-
-    .btnSmall{
-      padding: 11px 12px;
-      border-radius: 12px;
-      border: 1px solid var(--border);
-      background:#fff;
-      color:#111827;
-      font-weight: 850;
-      font-size: 14px;
-      cursor:pointer;
-      white-space:nowrap;
-    }
-    .fileBox{
-      border:1px dashed rgba(255,90,61,.45);
-      border-radius: 14px;
-      padding: 14px;
-      background: #fffaf7;
-    }
-    .fileRow{
-      display:flex; justify-content:space-between; align-items:center;
-      gap: 10px; flex-wrap: wrap;
-    }
-    .count{
-      color:#111827;
-      font-weight:900;
-      padding:6px 10px;
-      border-radius: 999px;
-      background: rgba(255,138,0,.12);
-      border: 1px solid rgba(255,138,0,.25);
-      font-size: 12px;
-    }
-
-    .btnPrimary{
+    /* ปุ่มใหญ่สีน้ำเงินตรงกลาง (เอาไว้แค่นี้ตามที่ขอ) */
+    .btn-primary{
       width:100%;
-      margin-top: 16px;
-      padding: 14px 16px;
-      border: none;
-      border-radius: 14px;
-      background: var(--btn);
+      margin-top:14px;
+      padding:16px 16px;
+      border:none;
+      border-radius:16px;
+      background:linear-gradient(180deg,#1f2a44,#151c2e);
       color:#fff;
-      font-weight: 900;
-      font-size: 16px;
+      font-weight:800;
+      font-size:16px;
       cursor:pointer;
     }
-    .note{ margin-top: 10px; font-size: 12px; color: var(--muted); }
+    .btn-primary:active{ transform: translateY(1px); }
+
+    .btn-row{
+      display:flex;
+      gap:12px;
+      margin-top:12px;
+    }
+    .btn{
+      flex:1;
+      padding:14px 14px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:#fff;
+      font-weight:800;
+      cursor:pointer;
+    }
+
+    .today-pill{
+      position:absolute;
+      right:14px;
+      top:50%;
+      transform:translateY(-50%);
+      border:1px solid var(--line);
+      background:#fff;
+      border-radius:999px;
+      padding:8px 12px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .field-wrap{ position:relative; }
+    .filebox{
+      border:1px dashed #f0b39a;
+      border-radius:16px;
+      padding:14px;
+      background:#fff;
+    }
   </style>
 </head>
 
 <body>
+  <div class="topbar">
+    <div class="brand">รวมรูปออโต้</div>
+    <div class="mk">MK</div>
+  </div>
+
   <div class="wrap">
-    <div class="top">
-      <div>
-        <h1 class="h1">รวมรูปออโต้</h1>
-        <p class="p">อัปโหลดรูป → เลือกรูปเด่นตรงกลาง → กดสร้าง → ดาวน์โหลดไฟล์รูปเดียว</p>
-      </div>
-      <div class="chip">MK</div>
-    </div>
-
     <div class="card">
-      <form id="form" action="/generate" method="post" enctype="multipart/form-data">
+      <div class="hint">
+        อัปโหลดรูป → เลือกรูปเด่นตรงกลาง → กดสร้าง → ดาวน์โหลดไฟล์รูปเดียว
+      </div>
 
+      <form action="/generate" method="post" enctype="multipart/form-data" id="form">
         <label>สาขา</label>
-        <select name="branch" id="branch">
-          <option value="M:15 แม็กแวลู่สุขาภิบาล 1">M:15 แม็กแวลู่สุขาภิบาล 1</option>
-          <option value="M:487 โลตัสสุขาภิบาล 1">M:487 โลตัสสุขาภิบาล 1</option>
-          <option value="M:571 โลตัสนวลจันทร์">M:571 โลตัสนวลจันทร์</option>
+        <select name="branch" required>
+          {% for b in branches %}
+            <option value="{{ b }}" {% if loop.first %}selected{% endif %}>{{ b }}</option>
+          {% endfor %}
         </select>
 
-        <div class="grid2">
-          <div>
+        <div class="row">
+          <div class="field-wrap">
             <label>วันที่</label>
-            <div class="dateRow">
-              <input id="dateInput" type="text" name="date" placeholder="วันที่ 15/12/68" />
-              <button class="btnSmall" type="button" onclick="setTodayThai()">วันนี้</button>
-            </div>
+            <input type="text" name="date" id="date" placeholder="วันที่ 14/12/68" />
+            <button class="today-pill" type="button" onclick="setToday()">วันนี้</button>
           </div>
 
           <div>
-            <label>เลือกรูปเด่นตรงกลาง</label>
-            <select name="center_index" id="centerIndex">
-              <option value="1" selected>รูปที่ 1 (ค่าเริ่มต้น)</option>
+            <label>รายละเอียดงาน (เลือกบ่อย)</label>
+            <select id="preset" onchange="document.getElementById('detail').value=this.value">
+              <option value="">-- เลือก --</option>
+              {% for p in presets %}
+                <option value="{{ p }}">{{ p }}</option>
+              {% endfor %}
             </select>
           </div>
         </div>
-
-        <label>รายละเอียดงาน (เลือกบ่อย)</label>
-        <select id="preset" onchange="applyPreset(this.value)">
-          <option value="">-- เลือก --</option>
-          <option value="เปิด App Food เรียบร้อยค่ะ">เปิด App Food เรียบร้อยค่ะ</option>
-          <option value="ทำความสะอาดร่องน้ำ เรียบร้อยค่ะ">ทำความสะอาดร่องน้ำ เรียบร้อยค่ะ</option>
-          <option value="ตรวจความพร้อมอุปกรณ์ เรียบร้อยค่ะ">ตรวจความพร้อมอุปกรณ์ เรียบร้อยค่ะ</option>
-          <option value="ตรวจความเรียบร้อยหน้างาน เรียบร้อยค่ะ">ตรวจความเรียบร้อยหน้างาน เรียบร้อยค่ะ</option>
-          <option value="จัดเรียงวัตถุดิบ/พื้นที่จัดเก็บ เรียบร้อยค่ะ">จัดเรียงวัตถุดิบ/พื้นที่จัดเก็บ เรียบร้อยค่ะ</option>
-        </select>
 
         <label>รายละเอียดงาน</label>
         <textarea id="detail" name="detail" placeholder="พิมพ์รายละเอียดงานตรงนี้..."></textarea>
 
         <label>อัปโหลดรูป</label>
-        <div class="fileBox">
-          <div class="fileRow">
-            <input id="images" type="file" name="images" multiple accept="image/*" />
-            <div class="count" id="imgCount">ยังไม่ได้เลือกรูป</div>
-          </div>
+        <div class="filebox">
+          <input type="file" name="images" multiple accept="image/*" required />
         </div>
 
-        <button class="btnPrimary" type="submit">สร้างรูป (Download)</button>
-        <div class="note">* ระบบจะจัดรูปให้เต็มช่องเพื่อให้สวย (ไม่มีขอบขาว)</div>
+        <button class="btn-primary" type="submit">สร้างรูป (Download)</button>
+
+        <div class="btn-row">
+          <button class="btn" type="button" onclick="resetForm()">ล้างฟอร์ม</button>
+        </div>
       </form>
     </div>
   </div>
 
   <script>
-    function setTodayThai(){
+    function pad2(n){ return String(n).padStart(2,'0'); }
+
+    // วันนี้ -> ใส่เป็น พ.ศ. แบบ yy (68)
+    function setToday(){
       const d = new Date();
-      const dd = String(d.getDate()).padStart(2, '0');
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const yyyyBE = d.getFullYear() + 543;
-      const yy = String(yyyyBE).slice(-2);
-      document.getElementById("dateInput").value = `วันที่ ${dd}/${mm}/${yy}`;
+      const dd = pad2(d.getDate());
+      const mm = pad2(d.getMonth()+1);
+      const yyyy = d.getFullYear() + 543; // พ.ศ.
+      const yy = String(yyyy).slice(-2);
+      document.getElementById('date').value = `วันที่ ${dd}/${mm}/${yy}`;
     }
 
-    function applyPreset(v){
-      if(!v) return;
-      document.getElementById("detail").value = v;
+    function resetForm(){
+      document.getElementById('form').reset();
+      document.getElementById('detail').value = "";
     }
-
-    const fileInput = document.getElementById("images");
-    const countEl = document.getElementById("imgCount");
-    const centerSel = document.getElementById("centerIndex");
-
-    function rebuildCenterOptions(n){
-      centerSel.innerHTML = "";
-      if(!n){
-        const op = document.createElement("option");
-        op.value = "1";
-        op.textContent = "รูปที่ 1 (ค่าเริ่มต้น)";
-        centerSel.appendChild(op);
-        return;
-      }
-      for(let i=1; i<=n; i++){
-        const op = document.createElement("option");
-        op.value = String(i);
-        op.textContent = `รูปที่ ${i}`;
-        centerSel.appendChild(op);
-      }
-      centerSel.value = "1";
-    }
-
-    fileInput.addEventListener("change", () => {
-      const n = fileInput.files ? fileInput.files.length : 0;
-      countEl.textContent = n ? `เลือกรูปแล้ว ${n} รูป` : "ยังไม่ได้เลือกรูป";
-      rebuildCenterOptions(n);
-    });
   </script>
 </body>
 </html>

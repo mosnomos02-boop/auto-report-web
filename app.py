@@ -3,229 +3,254 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 import io
 import os
 import uuid
+from datetime import datetime
 
-app = Flask(__name__)
-
-# ===== ฟอนต์ไทยในโปรเจกต์ =====
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT_PATH = os.path.join(BASE_DIR, "fonts", "THSarabunNew.ttf")
 
+app = Flask(__name__)
 
-# ------------------------------
-# Helpers
-# ------------------------------
-def draw_center_text(draw, text, y, font, canvas_w):
-    text = (text or "").strip()
-    if not text:
-        return y
-    bbox = draw.textbbox((0, 0), text, font=font)
-    text_w = bbox[2] - bbox[0]
-    text_h = bbox[3] - bbox[1]
-    x = (canvas_w - text_w) // 2
-    draw.text((x, y), text, fill="black", font=font)
-    return y + text_h + 6
+# กัน 413 (ปรับได้ เช่น 64MB, 100MB)
+app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024  # 64MB
 
 
-def cover_resize(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
-    """
-    เต็มช่อง ไม่มีขอบขาว (อาจครอปขอบเล็กน้อย) เหมือนแอปคอลลาจ
-    """
-    return ImageOps.fit(img, (target_w, target_h), method=Image.LANCZOS, centering=(0.5, 0.5))
+# =========================
+#  ตั้งค่า dropdown
+# =========================
+BRANCH_OPTIONS = [
+    "M015 แม็กแวลู่ สุขาภิบาล 1",
+    "M487 โลตัส สุขาภิบาล 1",
+    "M571 โลตัส นวลจันทร์",
+]
+
+DETAIL_PRESETS = [
+    "เปิด App Food เรียบร้อยค่ะ",
+    "ตรวจความพร้อมอุปกรณ์ เรียบร้อยค่ะ",
+    "ทำความสะอาดร่องน้ำเรียบร้อยค่ะ",
+    "ทำความสะอาดบ่อดักไขมันเรียบร้อยค่ะ",
+    "ตรวจสอบอุณหภูมิตู้เย็นรอบปิดร้านเรียบร้อยค่ะ",
+    "ตรวจสอบระบบน้ำไฟและแอร์ เรียบร้อยค่ะ",
+    "ซีลประตูหน้าร้านเรียบร้อยค่ะ",
+    "คลุมหุ่นยนต์เรียบร้อยค่ะ",
+    "Tablet 9 เครื่องครบค่ะ",
+]
 
 
-def paste_tile(canvas, img, x, y, w, h):
-    tile = cover_resize(img, w, h)
-    canvas.paste(tile, (x, y))
+# =========================
+#  Layout เลือกตามจำนวนรูปที่ใช้บ่อย
+#  แต่ถ้า n อื่น ๆ จะคำนวณอัตโนมัติ
+# =========================
+LAYOUT_MAP = {
+    1: (1, 1),
+    2: (1, 2),
+    3: (1, 3),
+    4: (2, 2),
+    5: (2, 3),
+    6: (2, 3),
+    7: (3, 3),
+    8: (2, 4),
+    9: (3, 3),
+    10: (3, 4),
+    12: (3, 4),
+    15: (3, 5),
+    18: (3, 6),
+}
 
+def pick_layout(n: int):
+    """เลือก rows/cols ให้ดูลงตัว และรองรับ n ทุกจำนวน"""
+    if n in LAYOUT_MAP:
+        return LAYOUT_MAP[n]
 
-def pick_grid(n: int):
-    """
-    fallback grid สำหรับจำนวนรูปอื่น ๆ
-    """
-    if n <= 2:
-        return 1, 2
-    if n == 3:
-        return 1, 3
-    if n == 4:
-        return 2, 2
-    if n == 6:
-        return 2, 3
-    if n == 8:
-        return 2, 4
-    if n == 18:
-        return 3, 6
-    cols = 3
+    # heuristic: เลือก cols ตามช่วงจำนวนรูป
+    if n <= 3:
+        cols = n
+    elif n <= 6:
+        cols = 3
+    elif n <= 8:
+        cols = 4
+    elif n <= 12:
+        cols = 4
+    elif n <= 18:
+        cols = 6
+    else:
+        cols = 6
+
     rows = (n + cols - 1) // cols
     return rows, cols
 
 
-def compose_hero_layout_landscape(canvas_w, header_safe_h, pad, n):
+def safe_open_image(file_storage) -> Image.Image:
     """
-    Layout แนวนอน (เหมาะกับรูปเยอะ)
-    17 รูป: top 4 / mid (3 + hero + 3) / bottom 6
-    18 รูป: top 5 / mid (3 + hero + 3) / bottom 6
+    เปิดรูปให้ปลอดภัย:
+    - แก้รูปเอียง/กลับหัวตาม EXIF
+    - แปลงเป็น RGB
+    - บีบอัด/ย่อเพื่อกันไฟล์ใหญ่มาก (ลดโอกาส 413 + เร็วขึ้น)
     """
-    top_cols = 4 if n == 17 else 5
+    img = Image.open(file_storage)
+    img = ImageOps.exif_transpose(img)  # สำคัญ: แก้หมุนตามที่ถ่ายจริง
+    img = img.convert("RGB")
 
-    top_strip_h = 180
-    hero_h = 460
-    bottom_strip_h = 200
+    # จำกัดขนาดด้านยาวสุด (ปรับได้)
+    max_side = 2200
+    w, h = img.size
+    if max(w, h) > max_side:
+        scale = max_side / float(max(w, h))
+        img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
 
-    canvas_h = header_safe_h + pad + top_strip_h + pad + hero_h + pad + bottom_strip_h + pad
-    canvas = Image.new("RGB", (canvas_w, canvas_h), "white")
-    return canvas, top_cols, top_strip_h, hero_h, bottom_strip_h
+    return img
 
 
-# ------------------------------
-# Routes
-# ------------------------------
+def contain_resize(img: Image.Image, target_w: int, target_h: int, bg=(255, 255, 255)) -> Image.Image:
+    """
+    ย่อ/ขยายแบบ CONTAIN (ไม่ตัดรูป ไม่บิด)
+    ถ้าสัดส่วนไม่พอดี จะเติมพื้นหลังให้เต็มช่อง
+    """
+    iw, ih = img.size
+    scale = min(target_w / iw, target_h / ih)
+    nw, nh = int(iw * scale), int(ih * scale)
+    resized = img.resize((nw, nh), Image.LANCZOS)
+
+    canvas = Image.new("RGB", (target_w, target_h), bg)
+    x = (target_w - nw) // 2
+    y = (target_h - nh) // 2
+    canvas.paste(resized, (x, y))
+    return canvas
+
+
+def draw_center_text(draw: ImageDraw.ImageDraw, text: str, y: int, font: ImageFont.ImageFont, canvas_w: int, fill=(20, 20, 20)):
+    text = (text or "").strip()
+    if not text:
+        return y
+    bbox = draw.textbbox((0, 0), text, font=font)
+    tw = bbox[2] - bbox[0]
+    th = bbox[3] - bbox[1]
+    x = (canvas_w - tw) // 2
+    draw.text((x, y), text, fill=fill, font=font)
+    return y + th + 8
+
+
+@app.errorhandler(413)
+def too_large(e):
+    return "ไฟล์รูปใหญ่เกินไป (413). ลองลดจำนวนรูป/ลดขนาดไฟล์ก่อนอัปโหลดนะครับ", 413
+
+
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template(
+        "index.html",
+        branches=BRANCH_OPTIONS,
+        presets=DETAIL_PRESETS
+    )
 
 
 @app.route("/generate", methods=["POST"])
 def generate():
+    # รับค่าจากฟอร์ม
     branch = (request.form.get("branch") or "").strip()
     date = (request.form.get("date") or "").strip()
     detail = (request.form.get("detail") or "").strip()
 
-    # เลือกรูปเด่น (1-based index)
-    try:
-        center_index = int(request.form.get("center_index", "1"))
-    except:
-        center_index = 1
-
     files = request.files.getlist("images")
-    if not files:
+    if not files or len(files) == 0:
         return "ยังไม่ได้เลือกรูป", 400
 
-    # โหลดรูป + หมุนตาม EXIF (ให้ตรงกับที่ถ่ายจากมือถือ)
-    imgs = []
-    for f in files:
-        img = Image.open(f)
-        img = ImageOps.exif_transpose(img)  # ✅ กันรูปกลับหัว/เอียง
-        img = img.convert("RGB")
-        imgs.append(img)
-
+    # เปิดรูป + แก้ EXIF + ย่อ
+    imgs = [safe_open_image(f) for f in files]
     n = len(imgs)
-    if center_index < 1 or center_index > n:
-        center_index = 1
 
-    # ย้ายรูปเด่นไปเป็นรูปแรก (hero)
-    hero_img = imgs[center_index - 1]
-    others = [imgs[i] for i in range(n) if i != (center_index - 1)]
-    ordered = [hero_img] + others  # ordered[0] = hero
+    # เลือก layout
+    rows, cols = pick_layout(n)
 
-    # ===== ตั้งค่าหน้าแนวนอน =====
-    canvas_w = 1920
-    pad = 8
+    # =========================
+    #  ตั้งค่า canvas / ช่องรูป
+    # =========================
+    pad = 14                 # ช่องว่างระหว่างรูป
+    outer = 18               # ขอบรอบนอก
+    cell_w, cell_h = 420, 420
 
-    # เผื่อหัวแบบปลอดภัย (เพราะข้อความยาวไม่เท่ากัน)
-    header_safe_h = 260
+    # Header สูงแบบพอดี ไม่ให้กินพื้นที่มาก
+    header_pad_top = 18
+    header_pad_bottom = 14
 
     # ฟอนต์
-    font_title = ImageFont.truetype(FONT_PATH, 72)
-    font_date = ImageFont.truetype(FONT_PATH, 54)
-    font_body = ImageFont.truetype(FONT_PATH, 58)
+    try:
+        font_title = ImageFont.truetype(FONT_PATH, 76)
+        font_date  = ImageFont.truetype(FONT_PATH, 56)
+        font_body  = ImageFont.truetype(FONT_PATH, 58)
+    except OSError:
+        return f"เปิดฟอนต์ไม่ได้ ตรวจไฟล์: {FONT_PATH}", 500
 
-    # ==============================
-    # Hero layout สำหรับ 17/18
-    # ==============================
-    if n in (17, 18):
-        canvas, top_cols, top_strip_h, hero_h, bottom_strip_h = compose_hero_layout_landscape(
-            canvas_w, header_safe_h, pad, n
-        )
-        draw = ImageDraw.Draw(canvas)
+    # กะความสูงหัวข้อจากข้อความจริง
+    tmp = Image.new("RGB", (10, 10), "white")
+    dtmp = ImageDraw.Draw(tmp)
 
-        # ----- วาดข้อความก่อน -----
-        y = 22
-        y = draw_center_text(draw, branch, y, font_title, canvas_w)
-        y = draw_center_text(draw, date, y + 4, font_date, canvas_w)
-        y = draw_center_text(draw, detail, y + 8, font_body, canvas_w)
+    def text_h(text, font):
+        if not (text or "").strip():
+            return 0
+        b = dtmp.textbbox((0, 0), text, font=font)
+        return (b[3] - b[1]) + 8
 
-        # เริ่มวางรูปใต้ข้อความจริง (กันซ้อน)
-        TEXT_BOTTOM_GAP = 16
-        y0 = y + TEXT_BOTTOM_GAP
+    h_title = text_h(branch, font_title)
+    h_date = text_h(date, font_date)
+    h_detail = text_h(detail, font_body)
 
-        # ----- แถวบน -----
-        top_w = (canvas_w - (top_cols + 1) * pad) // top_cols
-        for i in range(top_cols):
-            x = pad + i * (top_w + pad)
-            paste_tile(canvas, ordered[1 + i], x, y0, top_w, top_strip_h)
+    header_h = header_pad_top + h_title + h_date + h_detail + header_pad_bottom
 
-        # ----- โซนกลาง: ซ้าย 3 + hero + ขวา 3 -----
-        y1 = y0 + top_strip_h + pad
+    canvas_w = outer * 2 + cols * cell_w + (cols - 1) * pad
+    canvas_h = outer * 2 + header_h + rows * cell_h + (rows - 1) * pad
 
-        side_w = 260  # ✅ เหมาะกับแนวนอน ทำให้รูปกลางใหญ่ขึ้น
-        hero_w = canvas_w - (side_w * 2) - (pad * 4)
-        hero_x = pad * 2 + side_w
-
-        paste_tile(canvas, ordered[0], hero_x, y1, hero_w, hero_h)
-
-        side_tile_h = (hero_h - 2 * pad) // 3
-
-        left_start = 1 + top_cols
-        left_x = pad
-        for j in range(3):
-            yy = y1 + j * (side_tile_h + pad)
-            paste_tile(canvas, ordered[left_start + j], left_x, yy, side_w, side_tile_h)
-
-        right_start = left_start + 3
-        right_x = hero_x + hero_w + pad
-        for j in range(3):
-            yy = y1 + j * (side_tile_h + pad)
-            paste_tile(canvas, ordered[right_start + j], right_x, yy, side_w, side_tile_h)
-
-        # ----- แถวล่าง 6 -----
-        y2 = y1 + hero_h + pad
-        bottom_cols = 6
-        bottom_w = (canvas_w - (bottom_cols + 1) * pad) // bottom_cols
-
-        bottom_start = right_start + 3
-        for k in range(6):
-            x = pad + k * (bottom_w + pad)
-            paste_tile(canvas, ordered[bottom_start + k], x, y2, bottom_w, bottom_strip_h)
-
-        out_name = f"report_{uuid.uuid4().hex[:10]}.jpg"
-        buf = io.BytesIO()
-        canvas.save(buf, format="JPEG", quality=92)
-        buf.seek(0)
-        return send_file(buf, mimetype="image/jpeg", as_attachment=True, download_name=out_name)
-
-    # ==============================
-    # Fallback grid (2/3/4/6/8/อื่นๆ)
-    # ==============================
-    rows, cols = pick_grid(n)
-    cell_w, cell_h = 520, 520
-
-    # สร้าง canvas แบบแนวนอน/กว้างพอดีกริด
-    canvas_w2 = cols * cell_w + (cols + 1) * pad
-    # วาดหัวบน canvas ก่อน แล้วค่อยเริ่มรูปใต้หัวจริง
-    canvas_h2 = header_safe_h + rows * cell_h + (rows + 2) * pad
-    canvas = Image.new("RGB", (canvas_w2, canvas_h2), "white")
+    canvas = Image.new("RGB", (canvas_w, canvas_h), "white")
     draw = ImageDraw.Draw(canvas)
 
-    # วาดหัว
-    y = 22
-    y = draw_center_text(draw, branch, y, font_title, canvas_w2)
-    y = draw_center_text(draw, date, y + 4, font_date, canvas_w2)
-    y = draw_center_text(draw, detail, y + 8, font_body, canvas_w2)
+    # วาดหัวข้อ
+    y = outer + header_pad_top
+    y = draw_center_text(draw, branch, y, font_title, canvas_w)
+    y = draw_center_text(draw, date, y + 2, font_date, canvas_w)
+    y = draw_center_text(draw, detail, y + 6, font_body, canvas_w)
 
-    y0 = y + 16  # เริ่มรูปใต้ข้อความจริง
+    # จุดเริ่มวางรูป
+    grid_top = outer + header_h
 
-    for i, img in enumerate(ordered):
+    # =========================
+    #  วางรูปแบบ "จัดกึ่งกลางทุกกรณี"
+    #  - แถวเต็ม: เริ่มจากซ้ายปกติ
+    #  - แถวสุดท้ายที่ไม่เต็ม: คำนวณ offset ให้กึ่งกลาง
+    # =========================
+    for i, img in enumerate(imgs):
         r = i // cols
         c = i % cols
+
         if r >= rows:
             break
-        x0 = pad + c * (cell_w + pad)
-        y_img = y0 + pad + r * (cell_h + pad)
-        paste_tile(canvas, img, x0, y_img, cell_w, cell_h)
 
-    out_name = f"report_{uuid.uuid4().hex[:10]}.jpg"
+        # จำนวนรูปในแถวนี้
+        start_i = r * cols
+        end_i = min(start_i + cols, n)
+        items_in_row = end_i - start_i
+
+        # ถ้าแถวนี้ไม่เต็ม (มักเป็นแถวสุดท้าย) -> center
+        row_width = items_in_row * cell_w + (items_in_row - 1) * pad
+        full_row_width = cols * cell_w + (cols - 1) * pad
+
+        if items_in_row < cols:
+            # ใช้ c ตาม index ในแถว (0..items_in_row-1)
+            c_in_row = i - start_i
+            x_start = outer + (full_row_width - row_width) // 2
+            x0 = x_start + c_in_row * (cell_w + pad)
+        else:
+            x0 = outer + c * (cell_w + pad)
+
+        y0 = grid_top + r * (cell_h + pad)
+
+        tile = contain_resize(img, cell_w, cell_h, bg=(255, 255, 255))
+        canvas.paste(tile, (x0, y0))
+
+    # ชื่อไฟล์สุ่มกันซ้ำ
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_name = f"report_{stamp}_{uuid.uuid4().hex[:8]}.jpg"
+
     buf = io.BytesIO()
-    canvas.save(buf, format="JPEG", quality=92)
+    canvas.save(buf, format="JPEG", quality=92, optimize=True)
     buf.seek(0)
     return send_file(buf, mimetype="image/jpeg", as_attachment=True, download_name=out_name)
 
