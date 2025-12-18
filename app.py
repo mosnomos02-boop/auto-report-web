@@ -1,259 +1,333 @@
 from flask import Flask, render_template, request, send_file
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
 import io
-import os
-import uuid
+import base64
 from datetime import datetime
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FONT_PATH = os.path.join(BASE_DIR, "fonts", "THSarabunNew.ttf")
+import os
+import math
+import hashlib
 
 app = Flask(__name__)
+app.secret_key = 'your-secret-key-here'
 
-# กัน 413 (ปรับได้ เช่น 64MB, 100MB)
-app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024  # 64MB
-
-
-# =========================
-#  ตั้งค่า dropdown
-# =========================
-BRANCH_OPTIONS = [
-    "M015 แม็กแวลู่ สุขาภิบาล 1",
-    "M487 โลตัส สุขาภิบาล 1",
-    "M571 โลตัส นวลจันทร์",
-]
-
-DETAIL_PRESETS = [
-    "เปิด App Food เรียบร้อยค่ะ",
-    "ตรวจความพร้อมอุปกรณ์ เรียบร้อยค่ะ",
-    "ทำความสะอาดร่องน้ำเรียบร้อยค่ะ",
-    "ทำความสะอาดบ่อดักไขมันเรียบร้อยค่ะ",
-    "ตรวจสอบอุณหภูมิตู้เย็นรอบปิดร้านเรียบร้อยค่ะ",
-    "ตรวจสอบระบบน้ำไฟและแอร์ เรียบร้อยค่ะ",
-    "ซีลประตูหน้าร้านเรียบร้อยค่ะ",
-    "คลุมหุ่นยนต์เรียบร้อยค่ะ",
-    "Tablet 9 เครื่องครบค่ะ",
-]
-
-
-# =========================
-#  Layout เลือกตามจำนวนรูปที่ใช้บ่อย
-#  แต่ถ้า n อื่น ๆ จะคำนวณอัตโนมัติ
-# =========================
-LAYOUT_MAP = {
-    1: (1, 1),
-    2: (1, 2),
-    3: (1, 3),
-    4: (2, 2),
-    5: (2, 3),
-    6: (2, 3),
-    7: (3, 3),
-    8: (2, 4),
-    9: (3, 3),
-    10: (3, 4),
-    12: (3, 4),
-    15: (3, 5),
-    18: (3, 6),
+# ข้อมูลสาขา
+BRANCHES = {
+    'M015': 'M015 แม็กแวลู่ สุขาภิบาล 1',
+    'M487': 'M487 โลตัส สุขาภิบาล 1',
+    'M571': 'M571 โลตัส นวลจันทร์'
 }
 
-def pick_layout(n: int):
-    """เลือก rows/cols ให้ดูลงตัว และรองรับ n ทุกจำนวน"""
-    if n in LAYOUT_MAP:
-        return LAYOUT_MAP[n]
+WORK_TYPES = [
+    'ตรวจสอบระบบน้ำไฟและแอร์ เรียบร้อยค่ะ',
+    'ทำความสะอาดร่องน้ำเรียบร้อยค่ะ',
+    'ตรวจสอบอุณหภูมิตู้เย็นรอบปิดร้านเรียบร้อยค่ะ',
+    'ทำความสะอาดบ่อดักไขมันเรียบร้อยค่ะ',
+    'ซีลประตูหน้าร้านเรียบร้อยค่ะ',
+    'คลุมหุ่นยนต์เรียบร้อยค่ะ',
+    'เปิด App Food เรียบร้อยค่ะ',
+    'ตรวจความพร้อมอุปกรณ์ เรียบร้อยค่ะ',
+    'Tablet 9 เครื่องครบค่ะ'
+]
 
-    # heuristic: เลือก cols ตามช่วงจำนวนรูป
-    if n <= 3:
-        cols = n
-    elif n <= 6:
-        cols = 3
-    elif n <= 8:
-        cols = 4
-    elif n <= 12:
-        cols = 4
-    elif n <= 18:
-        cols = 6
-    else:
-        cols = 6
+# ขนาดกระดาษ A4 (pixel at 300 DPI)
+A4_WIDTH_PX = 2480  # 210mm
+A4_HEIGHT_PX = 3508  # 297mm
 
-    rows = (n + cols - 1) // cols
-    return rows, cols
+def get_thai_font(size):
+    """โหลดฟอนต์ภาษาไทยจากโฟลเดอร์ fonts"""
+    font_paths = [
+        'fonts/THSarabunNew Bold.ttf',
+        'fonts/THSarabunNew.ttf',
+        'fonts/THSarabunNew Bolditalic.ttf',
+        'Sarabun-Bold.ttf',
+        'THSarabunNew Bold.ttf',
+        'THSarabunNew.ttf'
+    ]
 
+    for font_path in font_paths:
+        if os.path.exists(font_path):
+            try:
+                return ImageFont.truetype(font_path, size)
+            except Exception:
+                continue
 
-def safe_open_image(file_storage) -> Image.Image:
+    # ลองใช้ฟอนต์ระบบ
+    system_fonts = [
+        "C:/Windows/Fonts/THSarabunNew Bold.ttf",
+        "C:/Windows/Fonts/THSarabunNew.ttf",
+        "/System/Library/Fonts/Thonburi.ttc",
+        "/usr/share/fonts/truetype/tlwg/Garuda-Bold.ttf"
+    ]
+
+    for font_path in system_fonts:
+        if os.path.exists(font_path):
+            try:
+                return ImageFont.truetype(font_path, size)
+            except Exception:
+                continue
+
+    print("⚠️ ไม่พบฟอนต์ภาษาไทย ใช้ฟอนต์เริ่มต้น")
+    return ImageFont.load_default()
+
+def _open_image_from_bytes(img_data: bytes) -> Image.Image:
     """
-    เปิดรูปให้ปลอดภัย:
-    - แก้รูปเอียง/กลับหัวตาม EXIF
-    - แปลงเป็น RGB
-    - บีบอัด/ย่อเพื่อกันไฟล์ใหญ่มาก (ลดโอกาส 413 + เร็วขึ้น)
+    เปิดรูปจาก bytes ให้ปลอดภัย:
+    - ตรวจว่าเป็นรูปจริง (verify)
+    - เปิดใหม่อีกครั้งเพื่อใช้งานต่อ (เพราะ verify ทำให้ไฟล์ pointer เปลี่ยน)
     """
-    img = Image.open(file_storage)
-    img = ImageOps.exif_transpose(img)  # สำคัญ: แก้หมุนตามที่ถ่ายจริง
-    img = img.convert("RGB")
+    if not img_data:
+        raise UnidentifiedImageError("Empty image bytes")
 
-    # จำกัดขนาดด้านยาวสุด (ปรับได้)
-    max_side = 2200
-    w, h = img.size
-    if max(w, h) > max_side:
-        scale = max_side / float(max(w, h))
-        img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+    bio = io.BytesIO(img_data)
+    img = Image.open(bio)
+    img.verify()
 
-    return img
+    bio2 = io.BytesIO(img_data)
+    img2 = Image.open(bio2)
 
+    # ป้องกันบางไฟล์มีโหมดแปลก ๆ
+    return img2.convert("RGB")
 
-def contain_resize(img: Image.Image, target_w: int, target_h: int, bg=(255, 255, 255)) -> Image.Image:
+def calculate_optimal_layout(num_images):
     """
-    ย่อ/ขยายแบบ CONTAIN (ไม่ตัดรูป ไม่บิด)
-    ถ้าสัดส่วนไม่พอดี จะเติมพื้นหลังให้เต็มช่อง
+    คำนวณ layout ที่เหมาะสมที่สุด (สูงสุด 3 แถว, ขยายเต็มพื้นที่ 100%)
     """
-    iw, ih = img.size
-    scale = min(target_w / iw, target_h / ih)
-    nw, nh = int(iw * scale), int(ih * scale)
-    resized = img.resize((nw, nh), Image.LANCZOS)
+    if num_images <= 0:
+        return 1, 1, 800
+    
+    spacing = 8  # ระยะห่างระหว่างรูปน้อยมาก
+    
+    # กรณีพิเศษ: 1-3 รูป → 1 แถว (ขยายเต็มความกว้าง 100%)
+    if num_images <= 3:
+        available_width = A4_WIDTH_PX - ((num_images - 1) * spacing)
+        img_size = available_width // num_images
+        return num_images, 1, img_size
+    
+    # กรณีพิเศษ: 4 รูป → 2x2
+    if num_images == 4:
+        available_width = A4_WIDTH_PX - spacing
+        img_size = available_width // 2
+        return 2, 2, img_size
+    
+    # กรณีพิเศษ: 5 รูป → 3 + 2
+    if num_images == 5:
+        available_width = A4_WIDTH_PX - (2 * spacing)
+        img_size = available_width // 3
+        return 3, 2, img_size
+    
+    # สำหรับ 6 รูปขึ้นไป: แบ่งเป็น 2 หรือ 3 แถว (ขยายเต็มพื้นที่)
+    if num_images <= 9:
+        cols = math.ceil(num_images / 3)
+        rows = min(3, math.ceil(num_images / cols))
+        available_width = A4_WIDTH_PX - ((cols - 1) * spacing)
+        img_size = available_width // cols
+        return cols, rows, img_size
+    
+    # มากกว่า 9 รูป: กระจายให้เท่ากันใน 3 แถว
+    cols = math.ceil(num_images / 3)
+    rows = 3
+    available_width = A4_WIDTH_PX - ((cols - 1) * spacing)
+    img_size = available_width // cols
+    
+    return cols, rows, img_size
 
-    canvas = Image.new("RGB", (target_w, target_h), bg)
-    x = (target_w - nw) // 2
-    y = (target_h - nh) // 2
-    canvas.paste(resized, (x, y))
+def create_report_image(images_data, branch, date, work_description):
+    """สร้างภาพรายงานแบบทางการ (แก้ไข: ไม่มีช่องว่างข้างและล่างรูป, จำกัด 3 แถว)"""
+    num_images = len(images_data)
+    
+    # คำนวณ layout อัตโนมัติ
+    cols, rows, img_size = calculate_optimal_layout(num_images)
+    
+    # Header (ไม่มี footer)
+    header_height = 280
+    margin_top = 60
+    margin_bottom = 40  # ลดช่องว่างล่างลง
+    margin_side = 40     # ลดช่องว่างข้างลง
+    spacing = 15         # ระยะห่างระหว่างรูป
+    
+    # คำนวณความสูงของพื้นที่รูปภาพ
+    images_area_height = rows * img_size + (rows - 1) * spacing
+    
+    # ขนาด canvas ที่พอดี
+    canvas_width = A4_WIDTH_PX
+    canvas_height = margin_top + header_height + images_area_height + margin_bottom
+    
+    # สร้าง canvas พื้นหลังสีขาว
+    canvas = Image.new('RGB', (canvas_width, canvas_height), color='white')
+    draw = ImageDraw.Draw(canvas)
+    
+    # โหลดฟอนต์ภาษาไทย
+    title_font = get_thai_font(100)
+    date_font = get_thai_font(75)
+    desc_font = get_thai_font(70)
+    
+    y_offset = margin_top
+    
+    # สาขา - สีดำ
+    branch_text = BRANCHES.get(branch, branch)
+    bbox = draw.textbbox((0, 0), branch_text, font=title_font)
+    text_width = bbox[2] - bbox[0]
+    text_x = (canvas_width - text_width) // 2
+    draw.text((text_x, y_offset), branch_text, fill=(0, 0, 0), font=title_font)
+    y_offset += bbox[3] - bbox[1] + 25
+    
+    # วันที่ (วัน/เดือน/ปี พ.ศ. แบบย่อ)
+    date_parts = date.split('-')
+    year_be_short = (int(date_parts[0]) + 543) % 100
+    thai_date = f"วันที่ {date_parts[2]}/{date_parts[1]}/{year_be_short:02d}"
+    
+    bbox = draw.textbbox((0, 0), thai_date, font=date_font)
+    text_width = bbox[2] - bbox[0]
+    text_x = (canvas_width - text_width) // 2
+    draw.text((text_x, y_offset), thai_date, fill=(60, 60, 60), font=date_font)
+    y_offset += bbox[3] - bbox[1] + 20
+    
+    # รายละเอียดงาน
+    bbox = draw.textbbox((0, 0), work_description, font=desc_font)
+    text_width = bbox[2] - bbox[0]
+    text_x = (canvas_width - text_width) // 2
+    draw.text((text_x, y_offset), work_description, fill=(80, 80, 80), font=desc_font)
+    y_offset += bbox[3] - bbox[1] + 35
+    
+    # วางรูปภาพ (ไม่มีช่องว่างข้าง)
+    y_start = y_offset
+    
+    for idx, img_data in enumerate(images_data):
+        row = idx // cols
+        col = idx % cols
+        
+        # คำนวณจำนวนรูปในแถวนี้
+        items_in_this_row = min(cols, num_images - row * cols)
+        
+        # คำนวณความกว้างรวมของแถวนี้
+        row_width = items_in_this_row * img_size + (items_in_this_row - 1) * spacing
+        
+        # จัดกึ่งกลาง
+        start_x = (canvas_width - row_width) // 2
+        
+        x = start_x + col * (img_size + spacing)
+        y = y_start + row * (img_size + spacing)
+        
+        # โหลดและปรับขนาดรูปภาพ (ปลอดภัย)
+        try:
+            img = _open_image_from_bytes(img_data)
+        except UnidentifiedImageError:
+            raise UnidentifiedImageError("พบไฟล์ที่ไม่ใช่รูปภาพ/ไฟล์เสีย กรุณาลองเลือกไฟล์รูปใหม่ (JPG/PNG)")
+        
+        img_width, img_height = img.size
+        aspect_ratio = img_width / img_height if img_height else 1.0
+        
+        # ครอปให้เป็นสี่เหลี่ยมจัตุรัส
+        if aspect_ratio < 0.7:  # ภาพแนวตั้งมาก
+            if img_width < img_height:
+                top = (img_height - img_width) // 2
+                img = img.crop((0, top, img_width, top + img_width))
+            else:
+                left = (img_width - img_height) // 2
+                img = img.crop((left, 0, left + img_height, img_height))
+        elif aspect_ratio > 1.5:  # ภาพแนวนอนมาก
+            if img_width > img_height:
+                left = (img_width - img_height) // 2
+                img = img.crop((left, 0, left + img_height, img_height))
+            else:
+                top = (img_height - img_width) // 2
+                img = img.crop((0, top, img_width, top + img_width))
+        else:
+            min_side = min(img_width, img_height)
+            left = (img_width - min_side) // 2
+            top = (img_height - min_side) // 2
+            img = img.crop((left, top, left + min_side, top + min_side))
+        
+        img = img.resize((img_size, img_size), Image.Resampling.LANCZOS)
+        canvas.paste(img, (x, y))
+    
     return canvas
 
+def _collect_unique_images(files):
+    """
+    อ่านไฟล์รูปจาก request.files โดย:
+    - อ่าน bytes แค่ครั้งเดียว
+    - ตัดไฟล์ซ้ำด้วย md5
+    - ข้ามไฟล์ว่าง
+    """
+    images_data = []
+    seen = set()
 
-def draw_center_text(draw: ImageDraw.ImageDraw, text: str, y: int, font: ImageFont.ImageFont, canvas_w: int, fill=(20, 20, 20)):
-    text = (text or "").strip()
-    if not text:
-        return y
-    bbox = draw.textbbox((0, 0), text, font=font)
-    tw = bbox[2] - bbox[0]
-    th = bbox[3] - bbox[1]
-    x = (canvas_w - tw) // 2
-    draw.text((x, y), text, fill=fill, font=font)
-    return y + th + 8
+    for f in files:
+        if not f or not f.filename:
+            continue
 
+        data = f.read()  # ✅ อ่านครั้งเดียว
+        if not data:
+            continue
 
-@app.errorhandler(413)
-def too_large(e):
-    return "ไฟล์รูปใหญ่เกินไป (413). ลองลดจำนวนรูป/ลดขนาดไฟล์ก่อนอัปโหลดนะครับ", 413
+        h = hashlib.md5(data).hexdigest()
+        if h in seen:
+            continue
 
+        seen.add(h)
+        images_data.append(data)
 
-@app.route("/")
+    return images_data
+
+@app.route('/')
 def index():
-    return render_template(
-        "index.html",
-        branches=BRANCH_OPTIONS,
-        presets=DETAIL_PRESETS
-    )
+    return render_template('index.html', branches=BRANCHES, work_types=WORK_TYPES)
 
-
-@app.route("/generate", methods=["POST"])
+@app.route('/generate', methods=['POST'])
 def generate():
-    # รับค่าจากฟอร์ม
-    branch = (request.form.get("branch") or "").strip()
-    date = (request.form.get("date") or "").strip()
-    detail = (request.form.get("detail") or "").strip()
-
-    files = request.files.getlist("images")
-    if not files or len(files) == 0:
-        return "ยังไม่ได้เลือกรูป", 400
-
-    # เปิดรูป + แก้ EXIF + ย่อ
-    imgs = [safe_open_image(f) for f in files]
-    n = len(imgs)
-
-    # เลือก layout
-    rows, cols = pick_layout(n)
-
-    # =========================
-    #  ตั้งค่า canvas / ช่องรูป
-    # =========================
-    pad = 14                 # ช่องว่างระหว่างรูป
-    outer = 18               # ขอบรอบนอก
-    cell_w, cell_h = 420, 420
-
-    # Header สูงแบบพอดี ไม่ให้กินพื้นที่มาก
-    header_pad_top = 18
-    header_pad_bottom = 14
-
-    # ฟอนต์
     try:
-        font_title = ImageFont.truetype(FONT_PATH, 76)
-        font_date  = ImageFont.truetype(FONT_PATH, 56)
-        font_body  = ImageFont.truetype(FONT_PATH, 58)
-    except OSError:
-        return f"เปิดฟอนต์ไม่ได้ ตรวจไฟล์: {FONT_PATH}", 500
+        branch = request.form.get('branch')
+        date = request.form.get('date')
+        work_description = request.form.get('work_description')
 
-    # กะความสูงหัวข้อจากข้อความจริง
-    tmp = Image.new("RGB", (10, 10), "white")
-    dtmp = ImageDraw.Draw(tmp)
+        files = request.files.getlist('images')
+        images_data = _collect_unique_images(files)
 
-    def text_h(text, font):
-        if not (text or "").strip():
-            return 0
-        b = dtmp.textbbox((0, 0), text, font=font)
-        return (b[3] - b[1]) + 8
+        if not images_data:
+            return "กรุณาอัพโหลดรูปภาพอย่างน้อย 1 รูป", 400
 
-    h_title = text_h(branch, font_title)
-    h_date = text_h(date, font_date)
-    h_detail = text_h(detail, font_body)
+        report_image = create_report_image(images_data, branch, date, work_description)
 
-    header_h = header_pad_top + h_title + h_date + h_detail + header_pad_bottom
+        img_io = io.BytesIO()
+        report_image.save(img_io, 'PNG', quality=95, dpi=(300, 300))
+        img_io.seek(0)
 
-    canvas_w = outer * 2 + cols * cell_w + (cols - 1) * pad
-    canvas_h = outer * 2 + header_h + rows * cell_h + (rows - 1) * pad
+        filename = f"รายงาน_{branch}_{date}.png"
+        return send_file(
+            img_io,
+            mimetype='image/png',
+            as_attachment=True,
+            download_name=filename
+        )
 
-    canvas = Image.new("RGB", (canvas_w, canvas_h), "white")
-    draw = ImageDraw.Draw(canvas)
+    except Exception as e:
+        return f"เกิดข้อผิดพลาด: {str(e)}", 500
 
-    # วาดหัวข้อ
-    y = outer + header_pad_top
-    y = draw_center_text(draw, branch, y, font_title, canvas_w)
-    y = draw_center_text(draw, date, y + 2, font_date, canvas_w)
-    y = draw_center_text(draw, detail, y + 6, font_body, canvas_w)
+@app.route('/preview', methods=['POST'])
+def preview():
+    try:
+        branch = request.form.get('branch')
+        date = request.form.get('date')
+        work_description = request.form.get('work_description')
 
-    # จุดเริ่มวางรูป
-    grid_top = outer + header_h
+        files = request.files.getlist('images')
+        images_data = _collect_unique_images(files)
 
-    # =========================
-    #  วางรูปแบบ "จัดกึ่งกลางทุกกรณี"
-    #  - แถวเต็ม: เริ่มจากซ้ายปกติ
-    #  - แถวสุดท้ายที่ไม่เต็ม: คำนวณ offset ให้กึ่งกลาง
-    # =========================
-    for i, img in enumerate(imgs):
-        r = i // cols
-        c = i % cols
+        if not images_data:
+            return {"error": "กรุณาอัพโหลดรูปภาพอย่างน้อย 1 รูป"}, 400
 
-        if r >= rows:
-            break
+        report_image = create_report_image(images_data, branch, date, work_description)
 
-        # จำนวนรูปในแถวนี้
-        start_i = r * cols
-        end_i = min(start_i + cols, n)
-        items_in_row = end_i - start_i
+        img_io = io.BytesIO()
+        report_image.save(img_io, 'PNG', quality=85)
+        img_io.seek(0)
+        img_base64 = base64.b64encode(img_io.getvalue()).decode()
 
-        # ถ้าแถวนี้ไม่เต็ม (มักเป็นแถวสุดท้าย) -> center
-        row_width = items_in_row * cell_w + (items_in_row - 1) * pad
-        full_row_width = cols * cell_w + (cols - 1) * pad
+        return {"preview": f"data:image/png;base64,{img_base64}"}
 
-        if items_in_row < cols:
-            # ใช้ c ตาม index ในแถว (0..items_in_row-1)
-            c_in_row = i - start_i
-            x_start = outer + (full_row_width - row_width) // 2
-            x0 = x_start + c_in_row * (cell_w + pad)
-        else:
-            x0 = outer + c * (cell_w + pad)
+    except Exception as e:
+        return {"error": str(e)}, 500
 
-        y0 = grid_top + r * (cell_h + pad)
-
-        tile = contain_resize(img, cell_w, cell_h, bg=(255, 255, 255))
-        canvas.paste(tile, (x0, y0))
-
-    # ชื่อไฟล์สุ่มกันซ้ำ
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out_name = f"report_{stamp}_{uuid.uuid4().hex[:8]}.jpg"
-
-    buf = io.BytesIO()
-    canvas.save(buf, format="JPEG", quality=92, optimize=True)
-    buf.seek(0)
-    return send_file(buf, mimetype="image/jpeg", as_attachment=True, download_name=out_name)
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
